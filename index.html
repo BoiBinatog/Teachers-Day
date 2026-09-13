@@ -11,7 +11,7 @@ body {
   height: 100vh;
   overflow: hidden;
 
-  background: url("blue.png") no-repeat center center;
+  background: url("paper.png") no-repeat center center;
   background-size: cover;
 
   display: flex;
@@ -169,6 +169,28 @@ body {
   transform: scale(1.12) translateY(-2px);
 }
 
+.theme-btn:disabled,
+.theme-btn.locked {
+  opacity: 0.35;
+  filter: grayscale(0.7);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* === DOWNLOAD PREVIEW (hovers over the video once all photos are taken) === */
+.download-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: rgba(0, 0, 0, 0.88);
+  border-radius: 25px;
+  z-index: 6;
+  display: none;
+}
+
 /* Cosmetic theme colors for the six theme buttons. */
 .theme-btn[data-theme="barbie"]  { background: radial-gradient(circle at 32% 28%, #ffd1e8 0%, #f06aa9 45%, #8e1858 100%); }
 .theme-btn[data-theme="minion"]  { background: radial-gradient(circle at 32% 28%, #fff58a 0%, #f5c400 45%, #8d6900 100%); }
@@ -187,6 +209,7 @@ body {
         <video id="video" autoplay></video>
         <canvas id="canvas" width="700" height="500" hidden></canvas>
       <div id="countdown"></div>
+      <img id="downloadPreview" class="download-preview" alt="Download preview">
     </div>
     
     
@@ -230,9 +253,7 @@ body {
   
     let capturedImages = [];
     
-    // === JUL32 THEMES ===
-    // B = background, O = overlay.
-    // NewsB is separated from the first five themes and uses only 3 photos.
+
     const THEMES = {
       barbie:  { bg: "BarbieB.png",  overlay: "BarbieO.png"  },
       minion:  { bg: "MinionB.png",  overlay: "MinionO.png"  },
@@ -242,20 +263,7 @@ body {
       news:    { bg: "NewsB.png",    overlay: null }
     };
 
-    /*
-      DOWNLOAD LAYOUT
-      ------------------------------------------------------------
-      Themes 1-5:
-        stripWidth  = 1800
-        stripHeight = 1200
 
-      These are the same 5R positions used by 5R.html:
-        Photo 1 = large, top-right
-        Photos 2-4 = three smaller photos along the bottom
-
-      x/y/z are intentionally editable so every downloaded photo
-      can be moved manually. z controls draw order (layer order).
-    */
     const NORMAL_DOWNLOAD_LAYOUT = {
       stripWidth: 1800,
       stripHeight: 1200,
@@ -274,16 +282,7 @@ body {
       ]
     };
 
-    /*
-      NEWSB DOWNLOAD LAYOUT
-      ------------------------------------------------------------
-      NewsB is separate:
-        stripWidth  = 1200
-        stripHeight = 1800
-        only 3 photos
 
-      Change x/y/w/h/z below to manually position each News photo.
-    */
     const NEWS_DOWNLOAD_LAYOUT = {
       stripWidth: 1200,
       stripHeight: 1800,
@@ -330,6 +329,9 @@ body {
     function selectTheme(name) {
       if (!THEMES[name]) return;
 
+
+      if (name === "news" && isNewsLocked()) return;
+
       currentTheme = name;
 
       document.querySelectorAll(".theme-btn").forEach(btn => {
@@ -339,10 +341,45 @@ body {
       const previewVideo = document.querySelector(".preview video");
       previewVideo.style.borderColor = THEME_ACCENT_COLORS[name] || "#b026ff";
 
-      // No theme background or overlay is shown in the saved-photo preview.
-      // The B/O assets are loaded only by buildFinalStrip() when Save is pressed.
 
       positionPreviewSlots(name);
+      updateDownloadPreview();
+    }
+
+
+    function hasFullSet() {
+      return capturedImages.length > 0 && capturedImages.length === getPhotoCount();
+    }
+
+
+    function isNewsLocked() {
+      return capturedImages.length >= 4;
+    }
+
+    function updateThemeButtonsLock() {
+      const newsBtn = document.querySelector('.theme-btn[data-theme="news"]');
+      if (!newsBtn) return;
+      const locked = isNewsLocked();
+      newsBtn.disabled = locked;
+      newsBtn.classList.toggle("locked", locked);
+      newsBtn.title = locked
+        ? "News (locked — 4 photos already taken)"
+        : "News";
+    }
+
+
+    function updateDownloadPreview() {
+      const previewImg = document.getElementById("downloadPreview");
+      if (!hasFullSet()) {
+        previewImg.style.display = "none";
+        previewImg.removeAttribute("src");
+        return;
+      }
+
+      buildFinalStrip(() => {
+        previewImg.src = finalCanvas.toDataURL("image/png");
+        previewImg.style.display = "block";
+      });
     }
 
     function positionPreviewSlots(themeName) {
@@ -363,7 +400,10 @@ body {
       }
     }
 
-    document.addEventListener("DOMContentLoaded", () => selectTheme(currentTheme));
+    document.addEventListener("DOMContentLoaded", () => {
+      selectTheme(currentTheme);
+      updateThemeButtonsLock();
+    });
 
     // aspect ratio
     navigator.mediaDevices.getUserMedia({
@@ -443,16 +483,22 @@ body {
       capturedImages = [];
       clearSlots();
 
+      const downloadPreview = document.getElementById("downloadPreview");
+      downloadPreview.style.display = "none";
+      updateThemeButtonsLock();
+
       const photoCount = getPhotoCount();
 
       for (let i = 0; i < photoCount; i++) {
-        await showCountdown(0);
+        await showCountdown(10);
         let imgUrl = takePhoto();
         capturedImages.push(imgUrl);
         document.getElementById(`slot${i + 1}`).src = imgUrl;
       }
 
       positionPreviewSlots(currentTheme);
+      updateThemeButtonsLock();
+      updateDownloadPreview();
     }
 
     function showCountdown(seconds) {
@@ -482,18 +528,7 @@ body {
       }
     }
 
-    // === BUILD_FINAL_STRIP ===
-    //
-    // Themes 1-5 use the exact 5R canvas size/placement:
-    //   1800 x 1200
-    //   Photo 1 large at top-right
-    //   Photos 2-4 along the bottom
-    //
-    // NewsB is completely separate:
-    //   1200 x 1800
-    //   3 photos
-    //
-    // Each photo has x, y, w, h and z values in the layout objects above.
+
     function buildFinalStrip(callback) {
       const layout = getDownloadLayout();
       const stripWidth = layout.stripWidth;
@@ -507,10 +542,10 @@ body {
 
       const bg = new Image();
       bg.onload = () => {
-        // 1) Theme background is used ONLY in the downloaded image.
+        
         fctx.drawImage(bg, 0, 0, stripWidth, stripHeight);
 
-        // 2) Draw photos in z order.
+      
         const photoJobs = capturedImages
           .slice(0, getPhotoCount())
           .map((src, i) => ({
@@ -561,7 +596,7 @@ body {
       };
 
       bg.onerror = () => {
-        // Still build the photo layout if the theme background is unavailable.
+        
         const photoJobs = capturedImages
           .slice(0, getPhotoCount())
           .map((src, i) => ({
@@ -626,8 +661,8 @@ body {
         let dataUrl = finalCanvas.toDataURL("image/png");
         let link = document.createElement("a");
         link.download = currentTheme === "news"
-          ? "photobooth_news_strip_1200x1800.png"
-          : "photobooth_strip_1800x1200.png";
+          ? "photobooth_news_strip.png"
+          : "photobooth_strip.png";
         link.href = dataUrl;
         link.click();
       });
@@ -636,6 +671,12 @@ body {
     function restartStrip() {
       capturedImages = [];
       clearSlots();
+
+      const downloadPreview = document.getElementById("downloadPreview");
+      downloadPreview.style.display = "none";
+      downloadPreview.removeAttribute("src");
+
+      updateThemeButtonsLock();
     }
   </script>
   
