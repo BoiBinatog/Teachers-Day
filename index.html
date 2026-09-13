@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photobooth</title>
+  <style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  height: 100vh;
+  overflow: hidden;
+
+  background: url("blue.png") no-repeat center center;
+  background-size: cover;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+  .photobooth {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+  }
+
+  .booth-row {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+
+.preview {
+  margin-top: 10px;
+  margin-left: 70px;
+  width: 71vw; 
+  height: 76vh;
+  position: relative;
+  overflow: hidden;
+  object-fit: fill;
+  border-radius: 25px;
+}
+
+.preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  display: block;
+  border-radius: 25px;
+}
+
+  .preview video {
+  border: 2px solid #b026ff;
+  border-radius: 25px;
+  transition: border-color 0.3s ease;
+}
+
+  #countdown {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 150px;
+    color: white;
+    font-weight: bold;
+    text-shadow: 3px 3px 8px black;
+    display: none;
+    z-index: 10;
+  }
+
+  .strip-container {
+    position: relative;
+    margin-top: -10px;
+    width: 240px;
+    height: 612px;
+  }
+  /* Theme backgrounds/overlays are intentionally NOT shown in the preview. */
+  .strip-frame {
+    display: none;
+  }
+
+  .photos {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .photos img {
+    position: absolute;
+    left: 15px;         
+    width: 209px;       
+    height: 140px;      
+    object-fit: cover;
+    border-radius: 2px;
+    background: #111;
+    z-index: 2;
+  }
+
+.controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 60px;
+  width: 100%;
+}
+
+.img-btn {
+  margin-top: 5px;
+  width: 190px;
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  z-index: 1;
+}
+
+.img-btn:hover {
+  transform: scale(1.1);
+  opacity: 0.85;
+}
+
+.img-btn:active {
+  transform: scale(0.95);
+}
+
+/* === JUL32 THEME CONTROLS === */
+.theme-controls {
+  position: absolute;
+  bottom: -8vh;
+  right: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+}
+
+.theme-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 100%;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.45),
+    inset -5px -6px 10px rgba(0, 0, 0, 0.35),
+    inset 4px 5px 8px rgba(255, 255, 255, 0.55);
+}
+
+.theme-btn:hover {
+  transform: scale(1.1) translateY(-2px);
+}
+
+.theme-btn:active {
+  transform: scale(0.95);
+}
+
+.theme-btn.active {
+  box-shadow:
+    0 0 0 3px #fff,
+    0 4px 10px rgba(0, 0, 0, 0.5),
+    inset -5px -6px 10px rgba(0, 0, 0, 0.35),
+    inset 4px 5px 8px rgba(255, 255, 255, 0.55);
+  transform: scale(1.12) translateY(-2px);
+}
+
+/* Cosmetic theme colors for the six theme buttons. */
+.theme-btn[data-theme="barbie"]  { background: radial-gradient(circle at 32% 28%, #ffd1e8 0%, #f06aa9 45%, #8e1858 100%); }
+.theme-btn[data-theme="minion"]  { background: radial-gradient(circle at 32% 28%, #fff58a 0%, #f5c400 45%, #8d6900 100%); }
+.theme-btn[data-theme="crayon"]  { background: radial-gradient(circle at 32% 28%, #ffb3b3 0%, #ef4b4b 45%, #7c1515 100%); }
+.theme-btn[data-theme="cloudy"]  { background: radial-gradient(circle at 32% 28%, #ffffff 0%, #b9d9ef 45%, #527a9b 100%); }
+.theme-btn[data-theme="rainbow"] { background: radial-gradient(circle at 32% 28%, #fff4c7 0%, #9edcff 45%, #6e6acb 100%); }
+.theme-btn[data-theme="news"]    { background: radial-gradient(circle at 32% 28%, #ffffff 0%, #b9b9b9 45%, #4d4d4d 100%); }
+
+  </style>
+</head>
+<body>
+
+  <div class="photobooth">
+   <div class="booth-row">
+    <div class="preview" style="position:relative;">
+        <video id="video" autoplay></video>
+        <canvas id="canvas" width="700" height="500" hidden></canvas>
+      <div id="countdown"></div>
+    </div>
+    
+    
+    <div class="strip-container">
+      <!-- Saved-photo strip preview, matching the 5R-style background/photo/overlay stack -->
+      <img id="stripBgPreview" class="strip-frame" alt="">
+      <div class="photos" id="photo-strip">
+          <img id="slot1">
+          <img id="slot2">
+          <img id="slot3">
+          <img id="slot4">
+
+          <div class="theme-controls" id="themeControls">
+            <button class="theme-btn" data-theme="barbie"  title="Barbie"  onclick="selectTheme('barbie')"></button>
+            <button class="theme-btn" data-theme="minion"  title="Minion"  onclick="selectTheme('minion')"></button>
+            <button class="theme-btn" data-theme="crayon"  title="Crayon"  onclick="selectTheme('crayon')"></button>
+            <button class="theme-btn" data-theme="cloudy"  title="Cloudy"  onclick="selectTheme('cloudy')"></button>
+            <button class="theme-btn" data-theme="rainbow" title="Rainbow" onclick="selectTheme('rainbow')"></button>
+            <button class="theme-btn" data-theme="news"    title="News"    onclick="selectTheme('news')"></button>
+          </div>
+      </div>
+      <img id="stripOverlayPreview" class="strip-frame" alt="">
+    </div>
+   </div>
+
+<div class="controls">
+  <img src="start.png" class="img-btn" onclick="startCapture()" alt="Start">
+  <img src="save.png" class="img-btn" onclick="printStrip()" alt="Save">
+  <img src="restart.png" class="img-btn" onclick="restartStrip()" alt="Restart">
+</div>
+  
+  <canvas id="finalCanvas" width="1800" height="1200" hidden></canvas>
+
+ <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const finalCanvas = document.getElementById('finalCanvas');
+    const fctx = finalCanvas.getContext('2d');
+    const countdown = document.getElementById('countdown');
+  
+    let capturedImages = [];
+    
+    // === JUL32 THEMES ===
+    // B = background, O = overlay.
+    // NewsB is separated from the first five themes and uses only 3 photos.
+    const THEMES = {
+      barbie:  { bg: "BarbieB.png",  overlay: "BarbieO.png"  },
+      minion:  { bg: "MinionB.png",  overlay: "MinionO.png"  },
+      crayon:  { bg: "CrayonB.png",  overlay: "CrayonO.png"  },
+      cloudy:  { bg: "CloudyB.png",  overlay: "CloudyO.png"  },
+      rainbow: { bg: "RainbowB.png", overlay: "RainbowO.png" },
+      news:    { bg: "NewsB.png",    overlay: null }
+    };
+
+    /*
+      DOWNLOAD LAYOUT
+      ------------------------------------------------------------
+      Themes 1-5:
+        stripWidth  = 1800
+        stripHeight = 1200
+
+      These are the same 5R positions used by 5R.html:
+        Photo 1 = large, top-right
+        Photos 2-4 = three smaller photos along the bottom
+
+      x/y/z are intentionally editable so every downloaded photo
+      can be moved manually. z controls draw order (layer order).
+    */
+    const NORMAL_DOWNLOAD_LAYOUT = {
+      stripWidth: 1800,
+      stripHeight: 1200,
+      photos: [
+        // Photo 1 - large top-right
+        { x: 48, y: 107,  w: 919, h: 630, z: 1 },
+
+        // Photo 2 - bottom-left
+        { x: 48.3,  y: 768, w: 563,  h: 390, z: 1 },
+
+        // Photo 3 - bottom-middle
+        { x: 627.7, y: 768, w: 563,  h: 390, z: 1 },
+
+        // Photo 4 - bottom-right
+        { x: 1207.7, y: 768, w: 563, h: 390, z: 1 }
+      ]
+    };
+
+    /*
+      NEWSB DOWNLOAD LAYOUT
+      ------------------------------------------------------------
+      NewsB is separate:
+        stripWidth  = 1200
+        stripHeight = 1800
+        only 3 photos
+
+      Change x/y/w/h/z below to manually position each News photo.
+    */
+    const NEWS_DOWNLOAD_LAYOUT = {
+      stripWidth: 1200,
+      stripHeight: 1800,
+      photos: [
+        { x: 43, y: 408, w: 1105, h: 769, z: 1 },
+        { x: 42, y: 1212, w: 538.5, h: 376, z: 1 },
+        { x: 607, y: 1212, w: 541, h: 376, z: 1 }
+      ]
+    };
+
+    function getPhotoCount() {
+      return currentTheme === "news" ? 3 : 4;
+    }
+
+    function getDownloadLayout() {
+      return currentTheme === "news"
+        ? NEWS_DOWNLOAD_LAYOUT
+        : NORMAL_DOWNLOAD_LAYOUT;
+    }
+
+    // Preview is deliberately independent from theme B/O files.
+    const PREVIEW_LAYOUT = {
+      photoW: 209,
+      photoH: 140,
+      startY: 20,
+      spacing: 7
+    };
+
+    const THEME_ACCENT_COLORS = {
+      barbie:  "#f06aa9",
+      minion:  "#f5c400",
+      crayon:  "#ef4b4b",
+      cloudy:  "#8bb9d9",
+      rainbow: "#9edcff",
+      news:    "#b0b0b0"
+    };
+
+    let currentTheme = "barbie";
+
+    function getPhotoCount() {
+      return currentTheme === "news" ? 3 : 4;
+    }
+
+    function selectTheme(name) {
+      if (!THEMES[name]) return;
+
+      currentTheme = name;
+
+      document.querySelectorAll(".theme-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.theme === name);
+      });
+
+      const previewVideo = document.querySelector(".preview video");
+      previewVideo.style.borderColor = THEME_ACCENT_COLORS[name] || "#b026ff";
+
+      // No theme background or overlay is shown in the saved-photo preview.
+      // The B/O assets are loaded only by buildFinalStrip() when Save is pressed.
+
+      positionPreviewSlots(name);
+    }
+
+    function positionPreviewSlots(themeName) {
+      const startY = PREVIEW_LAYOUT.startY;
+      const spacing = PREVIEW_LAYOUT.spacing;
+      const photoH = PREVIEW_LAYOUT.photoH;
+
+      for (let i = 0; i < 4; i++) {
+        const slot = document.getElementById(`slot${i + 1}`);
+
+        if (i < getPhotoCount()) {
+          slot.style.display = "block";
+          slot.style.top = (startY + i * (photoH + spacing)) + "px";
+        } else {
+          slot.style.display = "none";
+          slot.removeAttribute("src");
+        }
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => selectTheme(currentTheme));
+
+    // aspect ratio
+    navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 4096 }, 
+        height: { ideal: 2160 }
+      }
+    })
+    .then(stream => {
+      video.srcObject = stream;
+      video.onloadedmetadata = () => {
+        console.log("Camera Resolution:", video.videoWidth, "x", video.videoHeight);
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+      };
+    })
+    .catch(err => console.error("Camera error:", err));
+
+    function drawCover(ctx, img, dx, dy, dWidth, dHeight) {
+      const imgRatio = img.width / img.height;
+      const boxRatio = dWidth / dHeight;
+
+      let sx, sy, sWidth, sHeight;
+
+      if (imgRatio > boxRatio) {
+        // wider → crop sides
+        sHeight = img.height;
+        sWidth = sHeight * boxRatio;
+        sx = (img.width - sWidth) / 2;
+        sy = 0;
+      } else {
+        // taller → crop top/bottom
+        sWidth = img.width;
+        sHeight = sWidth / boxRatio;
+        sx = 0;
+        sy = (img.height - sHeight) / 2;
+      }
+
+      ctx.drawImage(img, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);
+    }
+  
+    function takePhoto() {
+      ctx.save();
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+  
+      // Crop logic same as cover
+      let frameW = canvas.width;
+      let frameH = canvas.height;
+      let frameRatio = frameW / frameH;
+  
+      let srcW = video.videoWidth;
+      let srcH = video.videoHeight;
+      let srcRatio = srcW / srcH;
+  
+      let sx, sy, sWidth, sHeight;
+  
+      if (srcRatio > frameRatio) {
+        sHeight = srcH;
+        sWidth = sHeight * frameRatio;
+        sx = (srcW - sWidth) / 2;
+        sy = 0;
+      } else {
+        sWidth = srcW;
+        sHeight = sWidth / frameRatio;
+        sx = 0;
+        sy = (srcH - sHeight) / 2;
+      }
+  
+      ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, frameW, frameH);
+      ctx.restore();
+  
+      return canvas.toDataURL("image/png");
+    }
+  
+    async function startCapture() {
+      capturedImages = [];
+      clearSlots();
+
+      const photoCount = getPhotoCount();
+
+      for (let i = 0; i < photoCount; i++) {
+        await showCountdown(0);
+        let imgUrl = takePhoto();
+        capturedImages.push(imgUrl);
+        document.getElementById(`slot${i + 1}`).src = imgUrl;
+      }
+
+      positionPreviewSlots(currentTheme);
+    }
+
+    function showCountdown(seconds) {
+      return new Promise(resolve => {
+        let counter = seconds;
+        countdown.style.display = "block";
+        countdown.textContent = counter;
+  
+        let interval = setInterval(() => {
+          counter--;
+          if (counter > 0) {
+            countdown.textContent = counter;
+          } else {
+            clearInterval(interval);
+            countdown.style.display = "none";
+            resolve();
+          }
+        }, 1000);
+      });
+    }
+  
+    function clearSlots() {
+      for (let i = 1; i <= 4; i++) {
+        const slot = document.getElementById(`slot${i}`);
+        slot.src = "";
+        slot.style.display = i <= getPhotoCount() ? "block" : "none";
+      }
+    }
+
+    // === BUILD_FINAL_STRIP ===
+    //
+    // Themes 1-5 use the exact 5R canvas size/placement:
+    //   1800 x 1200
+    //   Photo 1 large at top-right
+    //   Photos 2-4 along the bottom
+    //
+    // NewsB is completely separate:
+    //   1200 x 1800
+    //   3 photos
+    //
+    // Each photo has x, y, w, h and z values in the layout objects above.
+    function buildFinalStrip(callback) {
+      const layout = getDownloadLayout();
+      const stripWidth = layout.stripWidth;
+      const stripHeight = layout.stripHeight;
+      const theme = THEMES[currentTheme];
+
+      finalCanvas.width = stripWidth;
+      finalCanvas.height = stripHeight;
+
+      fctx.clearRect(0, 0, stripWidth, stripHeight);
+
+      const bg = new Image();
+      bg.onload = () => {
+        // 1) Theme background is used ONLY in the downloaded image.
+        fctx.drawImage(bg, 0, 0, stripWidth, stripHeight);
+
+        // 2) Draw photos in z order.
+        const photoJobs = capturedImages
+          .slice(0, getPhotoCount())
+          .map((src, i) => ({
+            src,
+            index: i,
+            position: layout.photos[i]
+          }))
+          .sort((a, b) => (a.position.z ?? 0) - (b.position.z ?? 0));
+
+        if (photoJobs.length === 0) {
+          finishStrip();
+          return;
+        }
+
+        let loaded = 0;
+
+        photoJobs.forEach(job => {
+          const img = new Image();
+
+          img.onload = () => {
+            const p = job.position;
+
+            drawCover(
+              fctx,
+              img,
+              p.x,
+              p.y,
+              p.w,
+              p.h
+            );
+
+            loaded++;
+
+            if (loaded === photoJobs.length) {
+              finishStrip();
+            }
+          };
+
+          img.onerror = () => {
+            loaded++;
+            if (loaded === photoJobs.length) {
+              finishStrip();
+            }
+          };
+
+          img.src = job.src;
+        });
+      };
+
+      bg.onerror = () => {
+        // Still build the photo layout if the theme background is unavailable.
+        const photoJobs = capturedImages
+          .slice(0, getPhotoCount())
+          .map((src, i) => ({
+            src,
+            position: layout.photos[i]
+          }))
+          .sort((a, b) => (a.position.z ?? 0) - (b.position.z ?? 0));
+
+        if (photoJobs.length === 0) {
+          finishStrip();
+          return;
+        }
+
+        let loaded = 0;
+
+        photoJobs.forEach(job => {
+          const img = new Image();
+          img.onload = () => {
+            const p = job.position;
+            drawCover(fctx, img, p.x, p.y, p.w, p.h);
+            loaded++;
+            if (loaded === photoJobs.length) finishStrip();
+          };
+          img.onerror = () => {
+            loaded++;
+            if (loaded === photoJobs.length) finishStrip();
+          };
+          img.src = job.src;
+        });
+      };
+
+      bg.src = theme.bg;
+
+      function finishStrip() {
+        // 3) Overlay is used ONLY in the downloaded image.
+        // NewsB has overlay:null, so nothing is drawn here.
+        if (!theme.overlay) {
+          callback();
+          return;
+        }
+
+        const overlay = new Image();
+
+        overlay.onload = () => {
+          fctx.drawImage(
+            overlay,
+            0,
+            0,
+            stripWidth,
+            stripHeight
+          );
+          callback();
+        };
+
+        overlay.onerror = () => callback();
+        overlay.src = theme.overlay;
+      }
+    }
+
+    function printStrip() {
+      buildFinalStrip(() => {
+        let dataUrl = finalCanvas.toDataURL("image/png");
+        let link = document.createElement("a");
+        link.download = currentTheme === "news"
+          ? "photobooth_news_strip_1200x1800.png"
+          : "photobooth_strip_1800x1200.png";
+        link.href = dataUrl;
+        link.click();
+      });
+    }
+  
+    function restartStrip() {
+      capturedImages = [];
+      clearSlots();
+    }
+  </script>
+  
+</body>
+</html>
